@@ -1,16 +1,32 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import Navbar from "@/components/Navbar";
+import HeroBanner from "@/components/HeroBanner";
+import MovieRow from "@/components/MovieRow";
+import Footer from "@/components/Footer";
+import { movies, categories } from "@/lib/mock-data";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const trending = movies.filter((m) => m.isTrending);
+  const newReleases = movies.filter((m) => m.isNewRelease);
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <HeroBanner />
+
+      <div className="-mt-16 relative z-10">
+        <MovieRow title="🔥 Trending Now" movies={trending} />
+        <MovieRow title="✨ New Releases" movies={newReleases} />
+
+        {categories.slice(0, 4).map((cat) => {
+          const catMovies = movies.filter((m) => m.category === cat);
+          if (catMovies.length === 0) return null;
+          return <MovieRow key={cat} title={cat} movies={catMovies} />;
+        })}
+      </div>
+
+      <Footer />
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
