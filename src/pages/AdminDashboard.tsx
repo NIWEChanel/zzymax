@@ -1,60 +1,204 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Film, Users, DollarSign, Eye, Plus, Edit, Trash2, BarChart3, LogOut, Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Film, Users, DollarSign, Eye, Plus, Edit, Trash2, BarChart3, LogOut, Menu, X, Check, XCircle, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { movies } from "@/lib/mock-data";
-
-const stats = [
-  { label: "Total Users", value: "1,247", icon: Users, change: "+12%" },
-  { label: "Total Revenue", value: "2.4M RWF", icon: DollarSign, change: "+8%" },
-  { label: "Total Movies", value: movies.length.toString(), icon: Film, change: "+3" },
-  { label: "Total Views", value: "45.2K", icon: Eye, change: "+22%" },
-];
-
-const recentTransactions = [
-  { user: "Jean Pierre", movie: "Crimson Horizon", amount: "500 RWF", date: "2024-12-14", status: "completed" },
-  { user: "Marie Claire", movie: "Neon Rebellion", amount: "700 RWF", date: "2024-12-14", status: "completed" },
-  { user: "Patrick N.", movie: "Love in Lagos", amount: "300 RWF", date: "2024-12-13", status: "pending" },
-  { user: "Alice M.", movie: "Monthly Premium", amount: "5,000 RWF", date: "2024-12-13", status: "completed" },
-];
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const AdminDashboard = () => {
+  const { user, isAdmin, loading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Data state
+  const [payments, setPayments] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [totalEarnings, setTotalEarnings] = useState(0);
+
+  // Video form
+  const [showVideoForm, setShowVideoForm] = useState(false);
+  const [editingVideo, setEditingVideo] = useState<any>(null);
+  const [videoForm, setVideoForm] = useState({
+    title: "", description: "", category: "Action", duration: "", rating: 0,
+    year: new Date().getFullYear(), price: 0, video_url: "",
+    is_featured: false, is_trending: false, is_new_release: false,
+  });
+  const [landscapeFile, setLandscapeFile] = useState<File | null>(null);
+  const [portraitFile, setPortraitFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (!loading && (!user || !isAdmin)) {
+      navigate("/login");
+    }
+  }, [user, isAdmin, loading, navigate]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchData();
+    }
+  }, [isAdmin]);
+
+  const fetchData = async () => {
+    const [paymentsRes, videosRes, profilesRes, plansRes] = await Promise.all([
+      supabase.from("payment_requests").select("*").order("created_at", { ascending: false }),
+      supabase.from("videos").select("*").order("created_at", { ascending: false }),
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("plans").select("*"),
+    ]);
+    setPayments(paymentsRes.data || []);
+    setVideos(videosRes.data || []);
+    setProfiles(profilesRes.data || []);
+    setPlans(plansRes.data || []);
+    
+    const approved = (paymentsRes.data || []).filter((p: any) => p.status === "approved");
+    setTotalEarnings(approved.reduce((sum: number, p: any) => sum + p.amount, 0));
+  };
+
+  const handleApprovePayment = async (paymentId: string) => {
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) return;
+
+    const { error } = await supabase
+      .from("payment_requests")
+      .update({ status: "approved", approved_by: user!.id, approved_at: new Date().toISOString() })
+      .eq("id", paymentId);
+
+    if (error) {
+      toast({ title: "Error approving payment", variant: "destructive" });
+      return;
+    }
+
+    // If plan payment, create subscription
+    if (payment.plan_id) {
+      const plan = plans.find(p => p.id === payment.plan_id);
+      if (plan) {
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
+        await supabase.from("user_subscriptions").insert({
+          user_id: payment.user_id,
+          plan_id: payment.plan_id,
+          payment_request_id: paymentId,
+          expires_at: expiresAt.toISOString(),
+        });
+      }
+    }
+
+    toast({ title: "Payment approved!" });
+    fetchData();
+  };
+
+  const handleRejectPayment = async (paymentId: string) => {
+    await supabase.from("payment_requests")
+      .update({ status: "rejected", approved_by: user!.id, approved_at: new Date().toISOString() })
+      .eq("id", paymentId);
+    toast({ title: "Payment rejected" });
+    fetchData();
+  };
+
+  const uploadThumbnail = async (file: File, type: string) => {
+    const ext = file.name.split('.').pop();
+    const path = `${type}/${Date.now()}.${ext}`;
+    const { data, error } = await supabase.storage.from("video-assets").upload(path, file);
+    if (error) throw error;
+    const { data: urlData } = supabase.storage.from("video-assets").getPublicUrl(data.path);
+    return urlData.publicUrl;
+  };
+
+  const handleSaveVideo = async () => {
+    try {
+      let landscapeUrl = editingVideo?.landscape_thumbnail || "";
+      let portraitUrl = editingVideo?.portrait_thumbnail || "";
+
+      if (landscapeFile) landscapeUrl = await uploadThumbnail(landscapeFile, "landscape");
+      if (portraitFile) portraitUrl = await uploadThumbnail(portraitFile, "portrait");
+
+      const videoData = {
+        ...videoForm,
+        landscape_thumbnail: landscapeUrl,
+        portrait_thumbnail: portraitUrl,
+      };
+
+      if (editingVideo) {
+        await supabase.from("videos").update(videoData).eq("id", editingVideo.id);
+        toast({ title: "Video updated!" });
+      } else {
+        await supabase.from("videos").insert(videoData);
+        toast({ title: "Video added!" });
+      }
+
+      setShowVideoForm(false);
+      setEditingVideo(null);
+      setLandscapeFile(null);
+      setPortraitFile(null);
+      setVideoForm({ title: "", description: "", category: "Action", duration: "", rating: 0, year: new Date().getFullYear(), price: 0, video_url: "", is_featured: false, is_trending: false, is_new_release: false });
+      fetchData();
+    } catch (e: any) {
+      toast({ title: "Error saving video", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteVideo = async (id: string) => {
+    await supabase.from("videos").delete().eq("id", id);
+    toast({ title: "Video deleted" });
+    fetchData();
+  };
+
+  const handleEditVideo = (video: any) => {
+    setEditingVideo(video);
+    setVideoForm({
+      title: video.title, description: video.description || "", category: video.category,
+      duration: video.duration || "", rating: video.rating || 0, year: video.year || new Date().getFullYear(),
+      price: video.price || 0, video_url: video.video_url || "",
+      is_featured: video.is_featured, is_trending: video.is_trending, is_new_release: video.is_new_release,
+    });
+    setShowVideoForm(true);
+  };
+
+  const handleToggleUserActive = async (profileId: string, currentActive: boolean) => {
+    await supabase.from("profiles").update({ is_active: !currentActive }).eq("id", profileId);
+    toast({ title: currentActive ? "User deactivated" : "User activated" });
+    fetchData();
+  };
+
+  const stats = [
+    { label: "Total Users", value: profiles.length.toString(), icon: Users, change: "" },
+    { label: "Total Earnings", value: `${totalEarnings.toLocaleString()} RWF`, icon: DollarSign, change: "" },
+    { label: "Total Videos", value: videos.length.toString(), icon: Film, change: "" },
+    { label: "Pending Payments", value: payments.filter(p => p.status === "pending").length.toString(), icon: Eye, change: "" },
+  ];
+
   const sidebarLinks = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "movies", label: "Movies", icon: Film },
-    { id: "users", label: "Users", icon: Users },
     { id: "payments", label: "Payments", icon: DollarSign },
+    { id: "videos", label: "Videos", icon: Film },
+    { id: "users", label: "Users", icon: Users },
   ];
+
+  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><p>Loading...</p></div>;
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
       <aside className={`${sidebarOpen ? "w-64" : "w-0 md:w-16"} transition-all duration-300 bg-card border-r border-border/50 flex flex-col overflow-hidden`}>
         <div className="p-4 flex items-center gap-3">
-          <span className="text-xl font-extrabold text-gradient">Z</span>
-          {sidebarOpen && <span className="text-lg font-bold">Admin</span>}
+          <span className="text-xl font-extrabold text-gradient">C</span>
+          {sidebarOpen && <span className="text-lg font-bold">Clipset Admin</span>}
         </div>
-
         <nav className="flex-1 p-2 space-y-1">
           {sidebarLinks.map((link) => (
-            <button
-              key={link.id}
-              onClick={() => setActiveTab(link.id)}
+            <button key={link.id} onClick={() => setActiveTab(link.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                activeTab === link.id
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-              }`}
-            >
+                activeTab === link.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+              }`}>
               <link.icon className="w-5 h-5 flex-shrink-0" />
               {sidebarOpen && <span>{link.label}</span>}
             </button>
           ))}
         </nav>
-
         <div className="p-4 border-t border-border/50">
           <Link to="/" className="flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <LogOut className="w-5 h-5" />
@@ -63,7 +207,6 @@ const AdminDashboard = () => {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 overflow-auto">
         <header className="border-b border-border/50 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -75,6 +218,7 @@ const AdminDashboard = () => {
         </header>
 
         <div className="p-6">
+          {/* Dashboard */}
           {activeTab === "dashboard" && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -82,7 +226,6 @@ const AdminDashboard = () => {
                   <div key={i} className="glass rounded-xl p-5 animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
                     <div className="flex items-center justify-between mb-3">
                       <stat.icon className="w-5 h-5 text-primary" />
-                      <span className="text-xs text-green-400 font-medium">{stat.change}</span>
                     </div>
                     <p className="text-2xl font-bold">{stat.value}</p>
                     <p className="text-sm text-muted-foreground">{stat.label}</p>
@@ -91,31 +234,38 @@ const AdminDashboard = () => {
               </div>
 
               <div className="glass rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">Recent Transactions</h3>
+                <h3 className="text-lg font-semibold mb-4">Recent Payment Requests</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border/50">
-                        <th className="text-left py-3 text-muted-foreground font-medium">User</th>
-                        <th className="text-left py-3 text-muted-foreground font-medium">Movie/Plan</th>
+                        <th className="text-left py-3 text-muted-foreground font-medium">Payer</th>
+                        <th className="text-left py-3 text-muted-foreground font-medium">Phone</th>
                         <th className="text-left py-3 text-muted-foreground font-medium">Amount</th>
-                        <th className="text-left py-3 text-muted-foreground font-medium">Date</th>
                         <th className="text-left py-3 text-muted-foreground font-medium">Status</th>
+                        <th className="text-left py-3 text-muted-foreground font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {recentTransactions.map((t, i) => (
-                        <tr key={i} className="border-b border-border/30">
-                          <td className="py-3">{t.user}</td>
-                          <td className="py-3">{t.movie}</td>
-                          <td className="py-3 font-medium">{t.amount}</td>
-                          <td className="py-3 text-muted-foreground">{t.date}</td>
+                      {payments.slice(0, 5).map((p) => (
+                        <tr key={p.id} className="border-b border-border/30">
+                          <td className="py-3">{p.payer_name}</td>
+                          <td className="py-3">{p.payer_phone}</td>
+                          <td className="py-3 font-medium">{p.amount} RWF</td>
                           <td className="py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              t.status === "completed" ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400"
-                            }`}>
-                              {t.status}
-                            </span>
+                              p.status === "approved" ? "bg-green-500/10 text-green-400" :
+                              p.status === "rejected" ? "bg-red-500/10 text-red-400" :
+                              "bg-yellow-500/10 text-yellow-400"
+                            }`}>{p.status}</span>
+                          </td>
+                          <td className="py-3">
+                            {p.status === "pending" && (
+                              <div className="flex gap-2">
+                                <button onClick={() => handleApprovePayment(p.id)} className="p-1.5 rounded hover:bg-green-500/10"><Check className="w-4 h-4 text-green-400" /></button>
+                                <button onClick={() => handleRejectPayment(p.id)} className="p-1.5 rounded hover:bg-red-500/10"><XCircle className="w-4 h-4 text-red-400" /></button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -126,19 +276,146 @@ const AdminDashboard = () => {
             </>
           )}
 
-          {activeTab === "movies" && (
+          {/* Payments Tab */}
+          {activeTab === "payments" && (
+            <div className="glass rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4">All Payment Requests</h2>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left py-3 text-muted-foreground font-medium">Payer</th>
+                    <th className="text-left py-3 text-muted-foreground font-medium">Phone</th>
+                    <th className="text-left py-3 text-muted-foreground font-medium">Amount</th>
+                    <th className="text-left py-3 text-muted-foreground font-medium">Date</th>
+                    <th className="text-left py-3 text-muted-foreground font-medium">Status</th>
+                    <th className="text-left py-3 text-muted-foreground font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((p) => (
+                    <tr key={p.id} className="border-b border-border/30">
+                      <td className="py-3">{p.payer_name}</td>
+                      <td className="py-3">{p.payer_phone}</td>
+                      <td className="py-3 font-medium">{p.amount} RWF</td>
+                      <td className="py-3 text-muted-foreground">{new Date(p.created_at).toLocaleDateString()}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          p.status === "approved" ? "bg-green-500/10 text-green-400" :
+                          p.status === "rejected" ? "bg-red-500/10 text-red-400" :
+                          "bg-yellow-500/10 text-yellow-400"
+                        }`}>{p.status}</span>
+                      </td>
+                      <td className="py-3">
+                        {p.status === "pending" && (
+                          <div className="flex gap-2">
+                            <button onClick={() => handleApprovePayment(p.id)} className="p-1.5 rounded hover:bg-green-500/10"><Check className="w-4 h-4 text-green-400" /></button>
+                            <button onClick={() => handleRejectPayment(p.id)} className="p-1.5 rounded hover:bg-red-500/10"><XCircle className="w-4 h-4 text-red-400" /></button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {payments.length === 0 && (
+                    <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">No payment requests yet</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Videos Tab */}
+          {activeTab === "videos" && (
             <div>
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-semibold">Movie Library</h2>
-                <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2">
-                  <Plus className="w-4 h-4" /> Add Movie
+                <h2 className="text-lg font-semibold">Video Library</h2>
+                <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                  onClick={() => { setEditingVideo(null); setVideoForm({ title: "", description: "", category: "Action", duration: "", rating: 0, year: new Date().getFullYear(), price: 0, video_url: "", is_featured: false, is_trending: false, is_new_release: false }); setShowVideoForm(true); }}>
+                  <Plus className="w-4 h-4" /> Add Video
                 </Button>
               </div>
+
+              {showVideoForm && (
+                <div className="glass rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-semibold mb-4">{editingVideo ? "Edit Video" : "Add New Video"}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Title</label>
+                      <input value={videoForm.title} onChange={e => setVideoForm({ ...videoForm, title: e.target.value })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Category</label>
+                      <select value={videoForm.category} onChange={e => setVideoForm({ ...videoForm, category: e.target.value })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
+                        {["Action", "Comedy", "Drama", "Horror", "Sci-Fi", "Romance", "Thriller", "Documentary"].map(c => <option key={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-sm text-muted-foreground mb-1 block">Description</label>
+                      <textarea value={videoForm.description} onChange={e => setVideoForm({ ...videoForm, description: e.target.value })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" rows={3} />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Duration (e.g. 2h 15m)</label>
+                      <input value={videoForm.duration} onChange={e => setVideoForm({ ...videoForm, duration: e.target.value })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Price (RWF)</label>
+                      <input type="number" value={videoForm.price} onChange={e => setVideoForm({ ...videoForm, price: Number(e.target.value) })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Rating (0-10)</label>
+                      <input type="number" step="0.1" max="10" value={videoForm.rating} onChange={e => setVideoForm({ ...videoForm, rating: Number(e.target.value) })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Year</label>
+                      <input type="number" value={videoForm.year} onChange={e => setVideoForm({ ...videoForm, year: Number(e.target.value) })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Video URL</label>
+                      <input value={videoForm.video_url} onChange={e => setVideoForm({ ...videoForm, video_url: e.target.value })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="https://..." />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Landscape Thumbnail (Desktop)</label>
+                      <input type="file" accept="image/*" onChange={e => setLandscapeFile(e.target.files?.[0] || null)}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Portrait Thumbnail (Mobile)</label>
+                      <input type="file" accept="image/*" onChange={e => setPortraitFile(e.target.files?.[0] || null)}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div className="md:col-span-2 flex gap-4">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={videoForm.is_featured} onChange={e => setVideoForm({ ...videoForm, is_featured: e.target.checked })} /> Featured
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={videoForm.is_trending} onChange={e => setVideoForm({ ...videoForm, is_trending: e.target.checked })} /> Trending
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={videoForm.is_new_release} onChange={e => setVideoForm({ ...videoForm, is_new_release: e.target.checked })} /> New Release
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-6">
+                    <Button onClick={handleSaveVideo} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                      {editingVideo ? "Update Video" : "Add Video"}
+                    </Button>
+                    <Button variant="outline" onClick={() => { setShowVideoForm(false); setEditingVideo(null); }}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
               <div className="glass rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border/50">
-                      <th className="text-left p-4 text-muted-foreground font-medium">Movie</th>
+                      <th className="text-left p-4 text-muted-foreground font-medium">Video</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Category</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Price</th>
                       <th className="text-left p-4 text-muted-foreground font-medium">Rating</th>
@@ -146,82 +423,59 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {movies.map((m) => (
-                      <tr key={m.id} className="border-b border-border/30">
+                    {videos.map((v) => (
+                      <tr key={v.id} className="border-b border-border/30">
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <img src={m.thumbnail} alt={m.title} className="w-10 h-14 rounded object-cover" />
-                            <span className="font-medium">{m.title}</span>
+                            {v.portrait_thumbnail && <img src={v.portrait_thumbnail} alt={v.title} className="w-10 h-14 rounded object-cover" />}
+                            <span className="font-medium">{v.title}</span>
                           </div>
                         </td>
-                        <td className="p-4 text-muted-foreground">{m.category}</td>
-                        <td className="p-4">{m.price} RWF</td>
-                        <td className="p-4">{m.rating}</td>
+                        <td className="p-4 text-muted-foreground">{v.category}</td>
+                        <td className="p-4">{v.price} RWF</td>
+                        <td className="p-4">{v.rating}</td>
                         <td className="p-4">
                           <div className="flex gap-2">
-                            <button className="p-1.5 rounded hover:bg-secondary"><Edit className="w-4 h-4 text-muted-foreground" /></button>
-                            <button className="p-1.5 rounded hover:bg-destructive/10"><Trash2 className="w-4 h-4 text-destructive" /></button>
+                            <button onClick={() => handleEditVideo(v)} className="p-1.5 rounded hover:bg-secondary"><Edit className="w-4 h-4 text-muted-foreground" /></button>
+                            <button onClick={() => handleDeleteVideo(v.id)} className="p-1.5 rounded hover:bg-destructive/10"><Trash2 className="w-4 h-4 text-destructive" /></button>
                           </div>
                         </td>
                       </tr>
                     ))}
+                    {videos.length === 0 && (
+                      <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No videos yet. Add your first video!</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
+          {/* Users Tab */}
           {activeTab === "users" && (
             <div className="glass rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4">User Management</h2>
-              <p className="text-muted-foreground text-sm">Connect Lovable Cloud to manage real users. Currently showing mock data.</p>
-              <div className="mt-4 space-y-3">
-                {["Jean Pierre", "Marie Claire", "Patrick Nkurunziza", "Alice Mukamana", "Eric Habimana"].map((name, i) => (
-                  <div key={i} className="flex items-center justify-between py-3 border-b border-border/30">
+              <div className="space-y-3">
+                {profiles.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between py-3 border-b border-border/30">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-sm font-bold">
-                        {name.charAt(0)}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${p.is_active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                        {(p.full_name || "U").charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-sm">{name}</span>
+                      <div>
+                        <span className="text-sm font-medium">{p.full_name || "Unknown"}</span>
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${p.is_active ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                          {p.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </div>
                     </div>
-                    <Button size="sm" variant="outline" className="text-xs">Block</Button>
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => handleToggleUserActive(p.id, p.is_active)}>
+                      {p.is_active ? "Deactivate" : "Activate"}
+                    </Button>
                   </div>
                 ))}
+                {profiles.length === 0 && <p className="text-muted-foreground text-sm text-center py-8">No users yet</p>}
               </div>
-            </div>
-          )}
-
-          {activeTab === "payments" && (
-            <div className="glass rounded-xl p-6">
-              <h2 className="text-lg font-semibold mb-4">Payment History</h2>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50">
-                    <th className="text-left py-3 text-muted-foreground font-medium">User</th>
-                    <th className="text-left py-3 text-muted-foreground font-medium">Item</th>
-                    <th className="text-left py-3 text-muted-foreground font-medium">Amount</th>
-                    <th className="text-left py-3 text-muted-foreground font-medium">Date</th>
-                    <th className="text-left py-3 text-muted-foreground font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentTransactions.map((t, i) => (
-                    <tr key={i} className="border-b border-border/30">
-                      <td className="py-3">{t.user}</td>
-                      <td className="py-3">{t.movie}</td>
-                      <td className="py-3 font-medium">{t.amount}</td>
-                      <td className="py-3 text-muted-foreground">{t.date}</td>
-                      <td className="py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          t.status === "completed" ? "bg-green-500/10 text-green-400" : "bg-yellow-500/10 text-yellow-400"
-                        }`}>
-                          {t.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           )}
         </div>
