@@ -5,8 +5,8 @@ const Footer = () => (
     <div className="container mx-auto px-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
         <div>
-          <h3 className="text-lg font-bold text-gradient mb-4">ZZYMAN</h3>
-          <p className="text-sm text-muted-foreground">Your premium movie streaming platform. Watch anywhere, anytime.</p>
+          <h3 className="text-lg font-bold text-gradient mb-4">Clipset</h3>
+          <p className="text-sm text-muted-foreground">Your premium video streaming platform. Watch anywhere, anytime.</p>
         </div>
         <div>
           <h4 className="font-semibold mb-3 text-sm">Browse</h4>
@@ -29,7 +29,7 @@ const Footer = () => (
         </div>
       </div>
       <div className="border-t border-border/50 pt-6 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} ZZYMAN. All rights reserved.
+        © {new Date().getFullYear()} Clipset. All rights reserved.
       </div>
     </div>
   </footer>
