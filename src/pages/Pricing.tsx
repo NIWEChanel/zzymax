@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PaymentModal from "@/components/PaymentModal";
+import SubscriptionCountdown from "@/components/SubscriptionCountdown";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 const Pricing = () => {
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
-  const { user } = useAuth();
+  const { user, hasActiveSubscription, subscriptionExpiresAt } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -40,6 +41,13 @@ const Pricing = () => {
           <p className="text-muted-foreground text-lg">Pay with MTN Mobile Money (MoMo)</p>
         </div>
 
+        {/* Show countdown if user has active subscription */}
+        {hasActiveSubscription && subscriptionExpiresAt && (
+          <div className="max-w-md mx-auto mb-10">
+            <SubscriptionCountdown expiresAt={subscriptionExpiresAt} />
+          </div>
+        )}
+
         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {plans.map((plan, i) => (
             <div key={plan.id}
@@ -63,11 +71,12 @@ const Pricing = () => {
                 ))}
               </ul>
               <Button onClick={() => handleSubscribe(plan)}
+                disabled={hasActiveSubscription}
                 className={`w-full font-semibold ${i === plans.length - 1
                   ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-glow"
                   : "bg-secondary text-foreground hover:bg-secondary/80"
                 }`}>
-                Subscribe
+                {hasActiveSubscription ? "Already Subscribed" : "Subscribe"}
               </Button>
             </div>
           ))}
@@ -80,12 +89,7 @@ const Pricing = () => {
       </div>
 
       {selectedPlan && (
-        <PaymentModal
-          planId={selectedPlan.id}
-          title={selectedPlan.name}
-          amount={selectedPlan.price}
-          onClose={() => setSelectedPlan(null)}
-        />
+        <PaymentModal planId={selectedPlan.id} title={selectedPlan.name} amount={selectedPlan.price} onClose={() => setSelectedPlan(null)} />
       )}
 
       <Footer />

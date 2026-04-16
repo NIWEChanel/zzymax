@@ -6,10 +6,13 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  hasActiveSubscription: boolean;
+  subscriptionExpiresAt: string | null;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshSubscription: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,6 +21,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const checkAdmin = async (userId: string) => {
@@ -30,15 +35,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAdmin(!!data);
   };
 
+  const checkSubscription = async (userId: string) => {
+    const { data } = await supabase
+      .from("user_subscriptions")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .gte("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setHasActiveSubscription(!!data);
+    setSubscriptionExpiresAt(data?.expires_at || null);
+  };
+
+  const refreshSubscription = async () => {
+    if (user) await checkSubscription(user.id);
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => checkAdmin(session.user.id), 0);
+          setTimeout(() => {
+            checkAdmin(session.user.id);
+            checkSubscription(session.user.id);
+          }, 0);
         } else {
           setIsAdmin(false);
+          setHasActiveSubscription(false);
+          setSubscriptionExpiresAt(null);
         }
         setLoading(false);
       }
@@ -49,6 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         checkAdmin(session.user.id);
+        checkSubscription(session.user.id);
       }
       setLoading(false);
     });
@@ -75,7 +104,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, hasActiveSubscription, subscriptionExpiresAt, loading, signUp, signIn, signOut, refreshSubscription }}>
       {children}
     </AuthContext.Provider>
   );
