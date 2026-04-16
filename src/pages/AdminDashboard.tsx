@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Film, Users, DollarSign, Eye, Plus, Edit, Trash2, BarChart3, LogOut, Menu, X, Check, XCircle, Upload } from "lucide-react";
+import { Film, Users, DollarSign, Eye, Plus, Edit, Trash2, BarChart3, LogOut, Menu, X, Check, XCircle, Upload, TrendingUp, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 
 const AdminDashboard = () => {
   const { user, isAdmin, loading } = useAuth();
@@ -13,7 +14,6 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Data state
   const [payments, setPayments] = useState<any[]>([]);
   const [videos, setVideos] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -31,17 +31,16 @@ const AdminDashboard = () => {
   const [landscapeFile, setLandscapeFile] = useState<File | null>(null);
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    if (!loading && (!user || !isAdmin)) {
-      navigate("/login");
-    }
-  }, [user, isAdmin, loading, navigate]);
+  // Plan form
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<any>(null);
+  const [planForm, setPlanForm] = useState({ name: "", price: 0, duration_days: 1, features: "" });
 
   useEffect(() => {
-    if (isAdmin) {
-      fetchData();
-    }
-  }, [isAdmin]);
+    if (!loading && (!user || !isAdmin)) navigate("/login");
+  }, [user, isAdmin, loading, navigate]);
+
+  useEffect(() => { if (isAdmin) fetchData(); }, [isAdmin]);
 
   const fetchData = async () => {
     const [paymentsRes, videosRes, profilesRes, plansRes] = await Promise.all([
@@ -54,7 +53,6 @@ const AdminDashboard = () => {
     setVideos(videosRes.data || []);
     setProfiles(profilesRes.data || []);
     setPlans(plansRes.data || []);
-    
     const approved = (paymentsRes.data || []).filter((p: any) => p.status === "approved");
     setTotalEarnings(approved.reduce((sum: number, p: any) => sum + p.amount, 0));
   };
@@ -62,33 +60,22 @@ const AdminDashboard = () => {
   const handleApprovePayment = async (paymentId: string) => {
     const payment = payments.find(p => p.id === paymentId);
     if (!payment) return;
-
-    const { error } = await supabase
-      .from("payment_requests")
+    const { error } = await supabase.from("payment_requests")
       .update({ status: "approved", approved_by: user!.id, approved_at: new Date().toISOString() })
       .eq("id", paymentId);
-
-    if (error) {
-      toast({ title: "Error approving payment", variant: "destructive" });
-      return;
-    }
-
-    // If plan payment, create subscription
+    if (error) { toast({ title: "Error approving payment", variant: "destructive" }); return; }
     if (payment.plan_id) {
       const plan = plans.find(p => p.id === payment.plan_id);
       if (plan) {
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + plan.duration_days);
         await supabase.from("user_subscriptions").insert({
-          user_id: payment.user_id,
-          plan_id: payment.plan_id,
-          payment_request_id: paymentId,
-          expires_at: expiresAt.toISOString(),
+          user_id: payment.user_id, plan_id: payment.plan_id,
+          payment_request_id: paymentId, expires_at: expiresAt.toISOString(),
         });
       }
     }
-
-    toast({ title: "Payment approved!" });
+    toast({ title: "Payment approved! User now has access." });
     fetchData();
   };
 
@@ -113,16 +100,9 @@ const AdminDashboard = () => {
     try {
       let landscapeUrl = editingVideo?.landscape_thumbnail || "";
       let portraitUrl = editingVideo?.portrait_thumbnail || "";
-
       if (landscapeFile) landscapeUrl = await uploadThumbnail(landscapeFile, "landscape");
       if (portraitFile) portraitUrl = await uploadThumbnail(portraitFile, "portrait");
-
-      const videoData = {
-        ...videoForm,
-        landscape_thumbnail: landscapeUrl,
-        portrait_thumbnail: portraitUrl,
-      };
-
+      const videoData = { ...videoForm, landscape_thumbnail: landscapeUrl, portrait_thumbnail: portraitUrl };
       if (editingVideo) {
         await supabase.from("videos").update(videoData).eq("id", editingVideo.id);
         toast({ title: "Video updated!" });
@@ -130,22 +110,15 @@ const AdminDashboard = () => {
         await supabase.from("videos").insert(videoData);
         toast({ title: "Video added!" });
       }
-
-      setShowVideoForm(false);
-      setEditingVideo(null);
-      setLandscapeFile(null);
-      setPortraitFile(null);
+      setShowVideoForm(false); setEditingVideo(null); setLandscapeFile(null); setPortraitFile(null);
       setVideoForm({ title: "", description: "", category: "Action", duration: "", rating: 0, year: new Date().getFullYear(), price: 0, video_url: "", is_featured: false, is_trending: false, is_new_release: false });
       fetchData();
-    } catch (e: any) {
-      toast({ title: "Error saving video", description: e.message, variant: "destructive" });
-    }
+    } catch (e: any) { toast({ title: "Error saving video", description: e.message, variant: "destructive" }); }
   };
 
   const handleDeleteVideo = async (id: string) => {
     await supabase.from("videos").delete().eq("id", id);
-    toast({ title: "Video deleted" });
-    fetchData();
+    toast({ title: "Video deleted" }); fetchData();
   };
 
   const handleEditVideo = (video: any) => {
@@ -161,21 +134,72 @@ const AdminDashboard = () => {
 
   const handleToggleUserActive = async (profileId: string, currentActive: boolean) => {
     await supabase.from("profiles").update({ is_active: !currentActive }).eq("id", profileId);
-    toast({ title: currentActive ? "User deactivated" : "User activated" });
+    toast({ title: currentActive ? "User deactivated" : "User activated" }); fetchData();
+  };
+
+  // Plan CRUD
+  const handleSavePlan = async () => {
+    const data = { name: planForm.name, price: planForm.price, duration_days: planForm.duration_days, features: planForm.features.split(",").map(f => f.trim()).filter(Boolean) };
+    if (editingPlan) {
+      await supabase.from("plans").update(data).eq("id", editingPlan.id);
+      toast({ title: "Plan updated!" });
+    } else {
+      await supabase.from("plans").insert(data);
+      toast({ title: "Plan created!" });
+    }
+    setShowPlanForm(false); setEditingPlan(null); setPlanForm({ name: "", price: 0, duration_days: 1, features: "" });
     fetchData();
   };
 
+  const handleEditPlan = (plan: any) => {
+    setEditingPlan(plan);
+    setPlanForm({ name: plan.name, price: plan.price, duration_days: plan.duration_days, features: (plan.features || []).join(", ") });
+    setShowPlanForm(true);
+  };
+
+  const handleDeletePlan = async (id: string) => {
+    await supabase.from("plans").delete().eq("id", id);
+    toast({ title: "Plan deleted" }); fetchData();
+  };
+
+  // Revenue analytics
+  const approvedPayments = payments.filter(p => p.status === "approved");
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 86400000);
+  const monthAgo = new Date(now.getTime() - 30 * 86400000);
+  const yearAgo = new Date(now.getTime() - 365 * 86400000);
+
+  const weeklyRevenue = approvedPayments.filter(p => new Date(p.approved_at || p.created_at) >= weekAgo).reduce((s, p) => s + p.amount, 0);
+  const monthlyRevenue = approvedPayments.filter(p => new Date(p.approved_at || p.created_at) >= monthAgo).reduce((s, p) => s + p.amount, 0);
+  const yearlyRevenue = approvedPayments.filter(p => new Date(p.approved_at || p.created_at) >= yearAgo).reduce((s, p) => s + p.amount, 0);
+
+  // Monthly chart data (last 6 months)
+  const monthlyChartData = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(); d.setMonth(d.getMonth() - (5 - i));
+    const month = d.toLocaleString("default", { month: "short" });
+    const y = d.getFullYear(); const m = d.getMonth();
+    const total = approvedPayments.filter(p => {
+      const pd = new Date(p.approved_at || p.created_at);
+      return pd.getMonth() === m && pd.getFullYear() === y;
+    }).reduce((s, p) => s + p.amount, 0);
+    return { month, revenue: total };
+  });
+
+  const CHART_COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#22c55e", "#eab308"];
+
   const stats = [
-    { label: "Total Users", value: profiles.length.toString(), icon: Users, change: "" },
-    { label: "Total Earnings", value: `${totalEarnings.toLocaleString()} RWF`, icon: DollarSign, change: "" },
-    { label: "Total Videos", value: videos.length.toString(), icon: Film, change: "" },
-    { label: "Pending Payments", value: payments.filter(p => p.status === "pending").length.toString(), icon: Eye, change: "" },
+    { label: "Total Users", value: profiles.length.toString(), icon: Users },
+    { label: "Total Earnings", value: `${totalEarnings.toLocaleString()} RWF`, icon: DollarSign },
+    { label: "Total Videos", value: videos.length.toString(), icon: Film },
+    { label: "Pending Payments", value: payments.filter(p => p.status === "pending").length.toString(), icon: Eye },
   ];
 
   const sidebarLinks = [
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-    { id: "payments", label: "Payments", icon: DollarSign },
+    { id: "revenue", label: "Revenue", icon: TrendingUp },
+    { id: "payments", label: "Payments", icon: CreditCard },
     { id: "videos", label: "Videos", icon: Film },
+    { id: "plans", label: "Plans", icon: DollarSign },
     { id: "users", label: "Users", icon: Users },
   ];
 
@@ -232,20 +256,17 @@ const AdminDashboard = () => {
                   </div>
                 ))}
               </div>
-
               <div className="glass rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">Recent Payment Requests</h3>
+                <h3 className="text-lg font-semibold mb-4">Recent Pending Payments</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/50">
-                        <th className="text-left py-3 text-muted-foreground font-medium">Payer</th>
-                        <th className="text-left py-3 text-muted-foreground font-medium">Phone</th>
-                        <th className="text-left py-3 text-muted-foreground font-medium">Amount</th>
-                        <th className="text-left py-3 text-muted-foreground font-medium">Status</th>
-                        <th className="text-left py-3 text-muted-foreground font-medium">Actions</th>
-                      </tr>
-                    </thead>
+                    <thead><tr className="border-b border-border/50">
+                      <th className="text-left py-3 text-muted-foreground font-medium">Payer</th>
+                      <th className="text-left py-3 text-muted-foreground font-medium">Phone</th>
+                      <th className="text-left py-3 text-muted-foreground font-medium">Amount</th>
+                      <th className="text-left py-3 text-muted-foreground font-medium">Status</th>
+                      <th className="text-left py-3 text-muted-foreground font-medium">Actions</th>
+                    </tr></thead>
                     <tbody>
                       {payments.slice(0, 5).map((p) => (
                         <tr key={p.id} className="border-b border-border/30">
@@ -253,20 +274,14 @@ const AdminDashboard = () => {
                           <td className="py-3">{p.payer_phone}</td>
                           <td className="py-3 font-medium">{p.amount} RWF</td>
                           <td className="py-3">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              p.status === "approved" ? "bg-green-500/10 text-green-400" :
-                              p.status === "rejected" ? "bg-red-500/10 text-red-400" :
-                              "bg-yellow-500/10 text-yellow-400"
-                            }`}>{p.status}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.status === "approved" ? "bg-green-500/10 text-green-400" : p.status === "rejected" ? "bg-red-500/10 text-red-400" : "bg-yellow-500/10 text-yellow-400"}`}>{p.status}</span>
                           </td>
-                          <td className="py-3">
-                            {p.status === "pending" && (
-                              <div className="flex gap-2">
-                                <button onClick={() => handleApprovePayment(p.id)} className="p-1.5 rounded hover:bg-green-500/10"><Check className="w-4 h-4 text-green-400" /></button>
-                                <button onClick={() => handleRejectPayment(p.id)} className="p-1.5 rounded hover:bg-red-500/10"><XCircle className="w-4 h-4 text-red-400" /></button>
-                              </div>
-                            )}
-                          </td>
+                          <td className="py-3">{p.status === "pending" && (
+                            <div className="flex gap-2">
+                              <button onClick={() => handleApprovePayment(p.id)} className="p-1.5 rounded hover:bg-green-500/10"><Check className="w-4 h-4 text-green-400" /></button>
+                              <button onClick={() => handleRejectPayment(p.id)} className="p-1.5 rounded hover:bg-red-500/10"><XCircle className="w-4 h-4 text-red-400" /></button>
+                            </div>
+                          )}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -276,50 +291,89 @@ const AdminDashboard = () => {
             </>
           )}
 
+          {/* Revenue Tab */}
+          {activeTab === "revenue" && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {[
+                  { label: "This Week", value: weeklyRevenue },
+                  { label: "This Month", value: monthlyRevenue },
+                  { label: "This Year", value: yearlyRevenue },
+                  { label: "All Time", value: totalEarnings },
+                ].map((r, i) => (
+                  <div key={i} className="glass rounded-xl p-5">
+                    <p className="text-sm text-muted-foreground mb-1">{r.label}</p>
+                    <p className="text-2xl font-bold text-gradient">{r.value.toLocaleString()} RWF</p>
+                  </div>
+                ))}
+              </div>
+              <div className="glass rounded-xl p-6 mb-6">
+                <h3 className="text-lg font-semibold mb-4">Monthly Revenue (Last 6 Months)</h3>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                      <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }} />
+                      <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="glass rounded-xl p-6">
+                <h3 className="text-lg font-semibold mb-4">Revenue Trend</h3>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={monthlyChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                      <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                      <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, color: "hsl(var(--foreground))" }} />
+                      <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: "hsl(var(--primary))" }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Payments Tab */}
           {activeTab === "payments" && (
             <div className="glass rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4">All Payment Requests</h2>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-border/50">
                     <th className="text-left py-3 text-muted-foreground font-medium">Payer</th>
                     <th className="text-left py-3 text-muted-foreground font-medium">Phone</th>
                     <th className="text-left py-3 text-muted-foreground font-medium">Amount</th>
                     <th className="text-left py-3 text-muted-foreground font-medium">Date</th>
                     <th className="text-left py-3 text-muted-foreground font-medium">Status</th>
                     <th className="text-left py-3 text-muted-foreground font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((p) => (
-                    <tr key={p.id} className="border-b border-border/30">
-                      <td className="py-3">{p.payer_name}</td>
-                      <td className="py-3">{p.payer_phone}</td>
-                      <td className="py-3 font-medium">{p.amount} RWF</td>
-                      <td className="py-3 text-muted-foreground">{new Date(p.created_at).toLocaleDateString()}</td>
-                      <td className="py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          p.status === "approved" ? "bg-green-500/10 text-green-400" :
-                          p.status === "rejected" ? "bg-red-500/10 text-red-400" :
-                          "bg-yellow-500/10 text-yellow-400"
-                        }`}>{p.status}</span>
-                      </td>
-                      <td className="py-3">
-                        {p.status === "pending" && (
+                  </tr></thead>
+                  <tbody>
+                    {payments.map((p) => (
+                      <tr key={p.id} className="border-b border-border/30">
+                        <td className="py-3">{p.payer_name}</td>
+                        <td className="py-3">{p.payer_phone}</td>
+                        <td className="py-3 font-medium">{p.amount} RWF</td>
+                        <td className="py-3 text-muted-foreground">{new Date(p.created_at).toLocaleDateString()}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.status === "approved" ? "bg-green-500/10 text-green-400" : p.status === "rejected" ? "bg-red-500/10 text-red-400" : "bg-yellow-500/10 text-yellow-400"}`}>{p.status}</span>
+                        </td>
+                        <td className="py-3">{p.status === "pending" && (
                           <div className="flex gap-2">
                             <button onClick={() => handleApprovePayment(p.id)} className="p-1.5 rounded hover:bg-green-500/10"><Check className="w-4 h-4 text-green-400" /></button>
                             <button onClick={() => handleRejectPayment(p.id)} className="p-1.5 rounded hover:bg-red-500/10"><XCircle className="w-4 h-4 text-red-400" /></button>
                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {payments.length === 0 && (
-                    <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">No payment requests yet</td></tr>
-                  )}
-                </tbody>
-              </table>
+                        )}</td>
+                      </tr>
+                    ))}
+                    {payments.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">No payment requests yet</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -333,7 +387,6 @@ const AdminDashboard = () => {
                   <Plus className="w-4 h-4" /> Add Video
                 </Button>
               </div>
-
               {showVideoForm && (
                 <div className="glass rounded-xl p-6 mb-6">
                   <h3 className="text-lg font-semibold mb-4">{editingVideo ? "Edit Video" : "Add New Video"}</h3>
@@ -391,37 +444,26 @@ const AdminDashboard = () => {
                         className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div className="md:col-span-2 flex gap-4">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" checked={videoForm.is_featured} onChange={e => setVideoForm({ ...videoForm, is_featured: e.target.checked })} /> Featured
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" checked={videoForm.is_trending} onChange={e => setVideoForm({ ...videoForm, is_trending: e.target.checked })} /> Trending
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" checked={videoForm.is_new_release} onChange={e => setVideoForm({ ...videoForm, is_new_release: e.target.checked })} /> New Release
-                      </label>
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={videoForm.is_featured} onChange={e => setVideoForm({ ...videoForm, is_featured: e.target.checked })} /> Featured</label>
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={videoForm.is_trending} onChange={e => setVideoForm({ ...videoForm, is_trending: e.target.checked })} /> Trending</label>
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={videoForm.is_new_release} onChange={e => setVideoForm({ ...videoForm, is_new_release: e.target.checked })} /> New Release</label>
                     </div>
                   </div>
                   <div className="flex gap-3 mt-6">
-                    <Button onClick={handleSaveVideo} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                      {editingVideo ? "Update Video" : "Add Video"}
-                    </Button>
+                    <Button onClick={handleSaveVideo} className="bg-primary text-primary-foreground hover:bg-primary/90">{editingVideo ? "Update Video" : "Add Video"}</Button>
                     <Button variant="outline" onClick={() => { setShowVideoForm(false); setEditingVideo(null); }}>Cancel</Button>
                   </div>
                 </div>
               )}
-
               <div className="glass rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="text-left p-4 text-muted-foreground font-medium">Video</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Category</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Price</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Rating</th>
-                      <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
-                    </tr>
-                  </thead>
+                  <thead><tr className="border-b border-border/50">
+                    <th className="text-left p-4 text-muted-foreground font-medium">Video</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Category</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Price</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Rating</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
+                  </tr></thead>
                   <tbody>
                     {videos.map((v) => (
                       <tr key={v.id} className="border-b border-border/30">
@@ -442,9 +484,79 @@ const AdminDashboard = () => {
                         </td>
                       </tr>
                     ))}
-                    {videos.length === 0 && (
-                      <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No videos yet. Add your first video!</td></tr>
-                    )}
+                    {videos.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No videos yet. Add your first video!</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Plans Tab */}
+          {activeTab === "plans" && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-semibold">Subscription Plans</h2>
+                <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                  onClick={() => { setEditingPlan(null); setPlanForm({ name: "", price: 0, duration_days: 1, features: "" }); setShowPlanForm(true); }}>
+                  <Plus className="w-4 h-4" /> Add Plan
+                </Button>
+              </div>
+              {showPlanForm && (
+                <div className="glass rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-semibold mb-4">{editingPlan ? "Edit Plan" : "Add New Plan"}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Name</label>
+                      <input value={planForm.name} onChange={e => setPlanForm({ ...planForm, name: e.target.value })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Price (RWF)</label>
+                      <input type="number" value={planForm.price} onChange={e => setPlanForm({ ...planForm, price: Number(e.target.value) })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Duration (days)</label>
+                      <input type="number" value={planForm.duration_days} onChange={e => setPlanForm({ ...planForm, duration_days: Number(e.target.value) })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                    </div>
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Features (comma-separated)</label>
+                      <input value={planForm.features} onChange={e => setPlanForm({ ...planForm, features: e.target.value })}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="HD, No Ads, Unlimited" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-6">
+                    <Button onClick={handleSavePlan} className="bg-primary text-primary-foreground hover:bg-primary/90">{editingPlan ? "Update Plan" : "Add Plan"}</Button>
+                    <Button variant="outline" onClick={() => { setShowPlanForm(false); setEditingPlan(null); }}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+              <div className="glass rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-border/50">
+                    <th className="text-left p-4 text-muted-foreground font-medium">Name</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Price</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Duration</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Active</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
+                  </tr></thead>
+                  <tbody>
+                    {plans.map((p) => (
+                      <tr key={p.id} className="border-b border-border/30">
+                        <td className="p-4 font-medium">{p.name}</td>
+                        <td className="p-4">{p.price} RWF</td>
+                        <td className="p-4">{p.duration_days} days</td>
+                        <td className="p-4"><span className={`px-2 py-0.5 rounded-full text-xs ${p.is_active ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>{p.is_active ? "Active" : "Inactive"}</span></td>
+                        <td className="p-4">
+                          <div className="flex gap-2">
+                            <button onClick={() => handleEditPlan(p)} className="p-1.5 rounded hover:bg-secondary"><Edit className="w-4 h-4 text-muted-foreground" /></button>
+                            <button onClick={() => handleDeletePlan(p.id)} className="p-1.5 rounded hover:bg-destructive/10"><Trash2 className="w-4 h-4 text-destructive" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {plans.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No plans yet</td></tr>}
                   </tbody>
                 </table>
               </div>

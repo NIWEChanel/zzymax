@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Search, Menu, X, User, LogOut, Shield } from "lucide-react";
+import { Search, Menu, X, LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -8,7 +8,7 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, hasActiveSubscription, signOut } = useAuth();
 
   const navLinks = [
     { to: "/", label: "Home" },
@@ -58,12 +58,19 @@ const Navbar = () => {
                     </Button>
                   </Link>
                 )}
+                {/* Show Join Now only if user has NO active subscription */}
+                {!hasActiveSubscription && (
+                  <Link to="/pricing">
+                    <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-glow-sm">Join Now</Button>
+                  </Link>
+                )}
                 <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground gap-1" onClick={() => signOut()}>
                   <LogOut className="w-4 h-4" /> Sign Out
                 </Button>
               </>
             ) : (
               <>
+                {/* Show Sign In only when NOT logged in */}
                 <Link to="/login">
                   <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Sign In</Button>
                 </Link>

@@ -22,8 +22,8 @@ const Register = () => {
     if (error) {
       toast({ title: "Registration failed", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Account created! Welcome to Clipset." });
-      navigate("/");
+      toast({ title: "Check your email!", description: "We sent a verification link. Please verify your email before signing in." });
+      navigate("/login");
     }
     setLoading(false);
   };
@@ -44,7 +44,7 @@ const Register = () => {
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder="Enter your full name"
                   className="w-full bg-secondary border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
               </div>
             </div>
