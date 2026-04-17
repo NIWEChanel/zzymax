@@ -52,7 +52,7 @@ const Movies = () => {
               </div>
               <div className="mt-2">
                 <p className="text-sm font-medium truncate">{v.title}</p>
-                <p className="text-xs text-muted-foreground">{v.price} RWF</p>
+                <p className="text-xs text-muted-foreground">{v.category}{v.duration ? ` • ${v.duration}` : ""}</p>
               </div>
             </Link>
           ))}
