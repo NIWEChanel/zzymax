@@ -39,7 +39,7 @@ const Index = () => {
                 )}
               </div>
               <p className="mt-2 text-sm font-medium truncate">{v.title}</p>
-              <p className="text-xs text-muted-foreground">{v.price} RWF</p>
+              <p className="text-xs text-muted-foreground">{v.category}</p>
             </Link>
           ))}
         </div>
@@ -62,10 +62,10 @@ const Index = () => {
             ★ Featured
           </span>
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 leading-tight">
-            {featured?.title || "Welcome to Clipset"}
+            {featured?.title || "ZZymax × Clipset"}
           </h1>
           <p className="text-lg text-muted-foreground mb-8 line-clamp-2">
-            {featured?.description || "Your premium video streaming platform. Browse, pay, and watch."}
+            {featured?.description || "ZZymax in Partnership with Clipset Production — premium video streaming. Subscribe and watch unlimited."}
           </p>
           {featured && (
             <div className="flex gap-4">

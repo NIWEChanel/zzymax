@@ -60,6 +60,26 @@ const AdminDashboard = () => {
   const handleApprovePayment = async (paymentId: string) => {
     const payment = payments.find(p => p.id === paymentId);
     if (!payment) return;
+
+    // Prevent overlapping subscriptions for plan payments
+    if (payment.plan_id) {
+      const { data: existingSub } = await supabase
+        .from("user_subscriptions")
+        .select("id, expires_at")
+        .eq("user_id", payment.user_id)
+        .eq("is_active", true)
+        .gte("expires_at", new Date().toISOString())
+        .maybeSingle();
+      if (existingSub) {
+        toast({
+          title: "User already has an active subscription",
+          description: `Expires ${new Date(existingSub.expires_at).toLocaleDateString()}. Cannot approve overlapping plan.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     const { error } = await supabase.from("payment_requests")
       .update({ status: "approved", approved_by: user!.id, approved_at: new Date().toISOString() })
       .eq("id", paymentId);
@@ -209,8 +229,8 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-background flex">
       <aside className={`${sidebarOpen ? "w-64" : "w-0 md:w-16"} transition-all duration-300 bg-card border-r border-border/50 flex flex-col overflow-hidden`}>
         <div className="p-4 flex items-center gap-3">
-          <span className="text-xl font-extrabold text-gradient">C</span>
-          {sidebarOpen && <span className="text-lg font-bold">Clipset Admin</span>}
+          <span className="text-xl font-extrabold text-gradient">Z</span>
+          {sidebarOpen && <span className="text-lg font-bold">ZZymax Admin</span>}
         </div>
         <nav className="flex-1 p-2 space-y-1">
           {sidebarLinks.map((link) => (
@@ -414,8 +434,8 @@ const AdminDashboard = () => {
                         className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                     </div>
                     <div>
-                      <label className="text-sm text-muted-foreground mb-1 block">Price (RWF)</label>
-                      <input type="number" value={videoForm.price} onChange={e => setVideoForm({ ...videoForm, price: Number(e.target.value) })}
+                      <label className="text-sm text-muted-foreground mb-1 block">Year</label>
+                      <input type="number" value={videoForm.year} onChange={e => setVideoForm({ ...videoForm, year: Number(e.target.value) })}
                         className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                     </div>
                     <div>
@@ -424,8 +444,8 @@ const AdminDashboard = () => {
                         className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                     </div>
                     <div>
-                      <label className="text-sm text-muted-foreground mb-1 block">Year</label>
-                      <input type="number" value={videoForm.year} onChange={e => setVideoForm({ ...videoForm, year: Number(e.target.value) })}
+                      <label className="text-sm text-muted-foreground mb-1 block">Rating (0-10)</label>
+                      <input type="number" step="0.1" max="10" value={videoForm.rating} onChange={e => setVideoForm({ ...videoForm, rating: Number(e.target.value) })}
                         className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                     </div>
                     <div>
@@ -460,7 +480,7 @@ const AdminDashboard = () => {
                   <thead><tr className="border-b border-border/50">
                     <th className="text-left p-4 text-muted-foreground font-medium">Video</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Category</th>
-                    <th className="text-left p-4 text-muted-foreground font-medium">Price</th>
+                    <th className="text-left p-4 text-muted-foreground font-medium">Year</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Rating</th>
                     <th className="text-left p-4 text-muted-foreground font-medium">Actions</th>
                   </tr></thead>
@@ -474,7 +494,7 @@ const AdminDashboard = () => {
                           </div>
                         </td>
                         <td className="p-4 text-muted-foreground">{v.category}</td>
-                        <td className="p-4">{v.price} RWF</td>
+                        <td className="p-4">{v.year || "—"}</td>
                         <td className="p-4">{v.rating}</td>
                         <td className="p-4">
                           <div className="flex gap-2">

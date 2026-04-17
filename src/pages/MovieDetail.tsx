@@ -1,22 +1,20 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Star, Clock, Play, ArrowLeft, Heart, Share2 } from "lucide-react";
+import { Star, Clock, Play, ArrowLeft, Heart, Share2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import PaymentModal from "@/components/PaymentModal";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 const MovieDetail = () => {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { user, hasActiveSubscription } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [video, setVideo] = useState<any>(null);
   const [related, setRelated] = useState<any[]>([]);
-  const [showPayment, setShowPayment] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,7 +36,17 @@ const MovieDetail = () => {
       navigate("/login");
       return;
     }
-    setShowPayment(true);
+    if (!hasActiveSubscription) {
+      toast({ title: "Subscription required", description: "Pick a plan to start watching." });
+      navigate("/pricing");
+      return;
+    }
+    // User has active subscription — allow play
+    if (video?.video_url) {
+      window.open(video.video_url, "_blank");
+    } else {
+      toast({ title: "Video coming soon", description: "This video has no playback URL yet." });
+    }
   };
 
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><p>Loading...</p></div>;
@@ -76,10 +84,10 @@ const MovieDetail = () => {
                 {video.year && <span>{video.year}</span>}
               </div>
               <p className="text-muted-foreground max-w-xl mb-6">{video.description}</p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-glow gap-2 font-semibold" onClick={handleWatchNow}>
-                  <Play className="w-5 h-5" fill="currentColor" />
-                  Watch Now - {video.price} RWF
+                  {hasActiveSubscription ? <Play className="w-5 h-5" fill="currentColor" /> : <Lock className="w-5 h-5" />}
+                  {hasActiveSubscription ? "Watch Now" : "Subscribe to Watch"}
                 </Button>
                 <Button size="lg" variant="outline" className="border-border/50 gap-2"><Heart className="w-5 h-5" /> Favorite</Button>
                 <Button size="lg" variant="outline" className="border-border/50 gap-2"><Share2 className="w-5 h-5" /></Button>
@@ -88,10 +96,6 @@ const MovieDetail = () => {
           </div>
         </div>
       </div>
-
-      {showPayment && (
-        <PaymentModal videoId={video.id} title={video.title} amount={video.price} onClose={() => setShowPayment(false)} />
-      )}
 
       {related.length > 0 && (
         <section className="py-12 container mx-auto px-4">

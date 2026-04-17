@@ -20,8 +20,8 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <Link to="/" className="text-2xl font-extrabold text-gradient tracking-tight">
-            Clipset
+          <Link to="/" className="text-xl md:text-2xl font-extrabold text-gradient tracking-tight leading-tight">
+            ZZymax <span className="text-muted-foreground font-medium text-sm hidden sm:inline">× Clipset</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
