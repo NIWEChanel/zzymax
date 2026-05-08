@@ -31,7 +31,7 @@ const Login = () => {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Link to="/" className="text-2xl font-extrabold text-gradient">ZZYMAX</Link>
+          <Link to="/" className="text-2xl font-extrabold text-gradient">Kivu Cinema</Link>
           <p className="text-muted-foreground mt-2">Welcome back</p>
         </div>
 

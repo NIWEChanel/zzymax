@@ -62,10 +62,10 @@ const Index = () => {
             ★ Featured
           </span>
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 leading-tight">
-            {featured?.title || "ZZymax × Clipset"}
+            {featured?.title || "Kivu Cinema"}
           </h1>
           <p className="text-lg text-muted-foreground mb-8 line-clamp-2">
-            {featured?.description || "ZZymax in Partnership with Clipset Production — premium video streaming. Subscribe and watch unlimited."}
+            {featured?.description || "Kivu Cinema — premium video streaming. Subscribe and watch unlimited."}
           </p>
           {featured && (
             <div className="flex gap-4">
