@@ -230,7 +230,7 @@ const AdminDashboard = () => {
       <aside className={`${sidebarOpen ? "w-64" : "w-0 md:w-16"} transition-all duration-300 bg-card border-r border-border/50 flex flex-col overflow-hidden`}>
         <div className="p-4 flex items-center gap-3">
           <span className="text-xl font-extrabold text-gradient">Z</span>
-          {sidebarOpen && <span className="text-lg font-bold">ZZymax Admin</span>}
+          {sidebarOpen && <span className="text-lg font-bold">Kivu Cinema Admin</span>}
         </div>
         <nav className="flex-1 p-2 space-y-1">
           {sidebarLinks.map((link) => (
