@@ -43,9 +43,10 @@ const MovieDetail = () => {
       navigate("/pricing");
       return;
     }
-    // User has active subscription — allow play
+    // User has active subscription — play inline
     if (video?.video_url) {
-      window.open(video.video_url, "_blank");
+      setShowPlayer(true);
+      setTimeout(() => document.getElementById("player-section")?.scrollIntoView({ behavior: "smooth" }), 50);
     } else {
       toast({ title: "Video coming soon", description: "This video has no playback URL yet." });
     }
