@@ -100,6 +100,12 @@ const MovieDetail = () => {
         </div>
       </div>
 
+      {showPlayer && hasActiveSubscription && video?.video_url && (
+        <section id="player-section" className="container mx-auto px-4 py-10">
+          <VideoPlayer src={video.video_url} poster={thumbnail} hoverPreview />
+        </section>
+      )}
+
       {related.length > 0 && (
         <section className="py-12 container mx-auto px-4">
           <h2 className="text-2xl font-bold mb-6">More {video.category}</h2>
