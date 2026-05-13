@@ -4,6 +4,7 @@ import { Star, Clock, Play, ArrowLeft, Heart, Share2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import VideoPlayer from "@/components/VideoPlayer";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ const MovieDetail = () => {
   const [video, setVideo] = useState<any>(null);
   const [related, setRelated] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPlayer, setShowPlayer] = useState(false);
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -41,9 +43,10 @@ const MovieDetail = () => {
       navigate("/pricing");
       return;
     }
-    // User has active subscription — allow play
+    // User has active subscription — play inline
     if (video?.video_url) {
-      window.open(video.video_url, "_blank");
+      setShowPlayer(true);
+      setTimeout(() => document.getElementById("player-section")?.scrollIntoView({ behavior: "smooth" }), 50);
     } else {
       toast({ title: "Video coming soon", description: "This video has no playback URL yet." });
     }
@@ -96,6 +99,12 @@ const MovieDetail = () => {
           </div>
         </div>
       </div>
+
+      {showPlayer && hasActiveSubscription && video?.video_url && (
+        <section id="player-section" className="container mx-auto px-4 py-10">
+          <VideoPlayer src={video.video_url} poster={thumbnail} hoverPreview />
+        </section>
+      )}
 
       {related.length > 0 && (
         <section className="py-12 container mx-auto px-4">
