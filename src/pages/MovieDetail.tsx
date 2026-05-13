@@ -17,6 +17,7 @@ const MovieDetail = () => {
   const [video, setVideo] = useState<any>(null);
   const [related, setRelated] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showPlayer, setShowPlayer] = useState(false);
 
   useEffect(() => {
     const fetchVideo = async () => {
