@@ -30,6 +30,51 @@ const AdminDashboard = () => {
   });
   const [landscapeFile, setLandscapeFile] = useState<File | null>(null);
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+
+  const CLOUDINARY_CLOUD_NAME = "dxsvjsgqw";
+  const CLOUDINARY_UPLOAD_PRESET = "kivu cinema";
+
+  const uploadVideoToCloudinary = (file: File) => {
+    return new Promise<string>((resolve, reject) => {
+      const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", url);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setVideoUploadProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const res = JSON.parse(xhr.responseText);
+          resolve(res.secure_url as string);
+        } else {
+          reject(new Error(xhr.responseText || "Upload failed"));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error during upload"));
+      xhr.send(formData);
+    });
+  };
+
+  const handleVideoFileChange = async (file: File | null) => {
+    if (!file) return;
+    setVideoUploading(true);
+    setVideoUploadProgress(0);
+    try {
+      const secureUrl = await uploadVideoToCloudinary(file);
+      setVideoForm((prev) => ({ ...prev, video_url: secureUrl }));
+      toast({ title: "Video uploaded", description: "Saved to Cloudinary successfully." });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message || "Could not upload video", variant: "destructive" });
+    } finally {
+      setVideoUploading(false);
+    }
+  };
 
   // Plan form
   const [showPlanForm, setShowPlanForm] = useState(false);
