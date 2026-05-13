@@ -493,8 +493,25 @@ const AdminDashboard = () => {
                       <input type="number" step="0.1" max="10" value={videoForm.rating} onChange={e => setVideoForm({ ...videoForm, rating: Number(e.target.value) })}
                         className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                     </div>
-                    <div>
-                      <label className="text-sm text-muted-foreground mb-1 block">Video URL</label>
+                    <div className="md:col-span-2">
+                      <label className="text-sm text-muted-foreground mb-1 block">Upload Video (saved to Cloudinary)</label>
+                      <input type="file" accept="video/*" disabled={videoUploading}
+                        onChange={e => handleVideoFileChange(e.target.files?.[0] || null)}
+                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm" />
+                      {videoUploading && (
+                        <div className="mt-2">
+                          <div className="h-2 bg-secondary rounded overflow-hidden">
+                            <div className="h-full bg-primary transition-all" style={{ width: `${videoUploadProgress}%` }} />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">Uploading... {videoUploadProgress}%</p>
+                        </div>
+                      )}
+                      {videoForm.video_url && !videoUploading && (
+                        <p className="text-xs text-green-500 mt-1 break-all">✓ {videoForm.video_url}</p>
+                      )}
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-sm text-muted-foreground mb-1 block">Or paste Video URL</label>
                       <input value={videoForm.video_url} onChange={e => setVideoForm({ ...videoForm, video_url: e.target.value })}
                         className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" placeholder="https://..." />
                     </div>
