@@ -1,0 +1,1 @@
+CREATE POLICY "Admins delete payments" ON public.payment_requests FOR DELETE USING (public.has_role(auth.uid(), 'admin'));
