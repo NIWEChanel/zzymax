@@ -13,7 +13,7 @@ interface PaymentModalProps {
   onClose: () => void;
 }
 
-const MOMO_CODE = "1027517";
+const MOMO_CODE = "2099960";
 const MOMO_NAME = "Shyaka Aime Bruce";
 
 const PaymentModal = ({ planId, videoId, title, amount, onClose }: PaymentModalProps) => {
