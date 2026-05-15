@@ -20,7 +20,7 @@ const Footer = () => (
         <div>
           <h4 className="font-semibold mb-3 text-sm">Payment</h4>
           <p className="text-sm text-muted-foreground">MTN Mobile Money (MoMo Pay)</p>
-          <p className="text-sm text-muted-foreground mt-1">Code: 1027517</p>
+          <p className="text-sm text-muted-foreground mt-1">Code: 2099960</p>
           <p className="text-sm text-muted-foreground">Rwanda 🇷🇼</p>
         </div>
         <div>
