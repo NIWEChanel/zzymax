@@ -152,6 +152,14 @@ const AdminDashboard = () => {
     fetchData();
   };
 
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm("Delete this transaction? This cannot be undone.")) return;
+    const { error } = await supabase.from("payment_requests").delete().eq("id", paymentId);
+    if (error) { toast({ title: "Error deleting payment", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Transaction deleted" });
+    fetchData();
+  };
+
   const uploadThumbnail = async (file: File, type: string) => {
     const ext = file.name.split('.').pop();
     const path = `${type}/${Date.now()}.${ext}`;
