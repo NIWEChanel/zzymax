@@ -65,7 +65,7 @@ const Index = () => {
             {featured?.title || "Kivu Cinema"}
           </h1>
           <p className="text-lg text-muted-foreground mb-8 line-clamp-2">
-            {featured?.description || "Kivu Cinema — premium video streaming. Subscribe and watch unlimited."}
+            {featured?.description || "Kivu Cinema Home of Independent Filmmakers. Subscribe and watch unlimited"}
           </p>
           {featured && (
             <div className="flex gap-4">
