@@ -435,12 +435,17 @@ const AdminDashboard = () => {
                         <td className="py-3">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.status === "approved" ? "bg-green-500/10 text-green-400" : p.status === "rejected" ? "bg-red-500/10 text-red-400" : "bg-yellow-500/10 text-yellow-400"}`}>{p.status}</span>
                         </td>
-                        <td className="py-3">{p.status === "pending" && (
+                        <td className="py-3">
                           <div className="flex gap-2">
-                            <button onClick={() => handleApprovePayment(p.id)} className="p-1.5 rounded hover:bg-green-500/10"><Check className="w-4 h-4 text-green-400" /></button>
-                            <button onClick={() => handleRejectPayment(p.id)} className="p-1.5 rounded hover:bg-red-500/10"><XCircle className="w-4 h-4 text-red-400" /></button>
+                            {p.status === "pending" && (
+                              <>
+                                <button onClick={() => handleApprovePayment(p.id)} className="p-1.5 rounded hover:bg-green-500/10"><Check className="w-4 h-4 text-green-400" /></button>
+                                <button onClick={() => handleRejectPayment(p.id)} className="p-1.5 rounded hover:bg-red-500/10"><XCircle className="w-4 h-4 text-red-400" /></button>
+                              </>
+                            )}
+                            <button onClick={() => handleDeletePayment(p.id)} className="p-1.5 rounded hover:bg-destructive/10" title="Delete transaction"><Trash2 className="w-4 h-4 text-destructive" /></button>
                           </div>
-                        )}</td>
+                        </td>
                       </tr>
                     ))}
                     {payments.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">No payment requests yet</td></tr>}
