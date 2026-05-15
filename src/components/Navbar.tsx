@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Search, Menu, X, LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import kivuLogo from "@/assets/kivu-logo.png";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,8 +21,15 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <Link to="/" className="text-xl md:text-2xl font-extrabold text-gradient tracking-tight leading-tight">
-            Kivu Cinema
+          <Link to="/" className="flex items-center gap-2 leading-none">
+            <img
+              src={kivuLogo}
+              alt="Kivu Cinema logo"
+              className="h-8 md:h-10 w-auto object-contain shrink-0"
+            />
+            <span className="text-xl md:text-2xl font-extrabold text-gradient tracking-tight leading-none">
+              Kivu Cinema
+            </span>
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
